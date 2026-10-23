@@ -1,1 +1,33 @@
 target/
+
+# Environment and secrets
+.env
+.env.*
+*.env
+*.env.*
+
+# Keys and certificates
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.der
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+
+# Tokens and credentials
+*.token
+*.secret
+*.credential
+credentials*
+secrets/**
+
+# Config files that may contain secrets
+*.local.*
+*.local
+*.private.*
+.private/**
