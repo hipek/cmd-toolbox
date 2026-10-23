@@ -16,3 +16,8 @@ make install
 ```bash
 make clean
 ```
+
+## Rules
+
+- **Do not edit `**/SPEC.md` files** unless the user explicitly asks you to.
+
