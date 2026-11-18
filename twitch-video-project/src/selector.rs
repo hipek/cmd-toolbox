@@ -1,82 +1,89 @@
 use crate::twitch::Video;
-use crossterm::{
-    cursor,
-    event::{self, Event, KeyCode},
-    execute, queue,
-    style::{Attribute, Print, SetAttribute},
-    terminal::{self, Clear, ClearType},
+use crossterm::event::{self, Event, KeyCode};
+use ratatui::{
+    DefaultTerminal, Frame,
+    layout::{Constraint, Direction, Layout},
+    style::{Modifier, Style},
+    text::Line,
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
-use std::io::{self, Write};
+use std::io;
 
 pub fn select(videos: &[Video]) -> Result<Option<&Video>, String> {
-    let mut stdout = io::stdout();
-    terminal::enable_raw_mode().map_err(|e| format!("could not enable terminal input: {e}"))?;
-    execute!(stdout, terminal::EnterAlternateScreen, cursor::Hide)
-        .map_err(|e| format!("terminal setup failed: {e}"))?;
-    let mut selected = 0usize;
-    let result = loop {
-        render(&mut stdout, videos, selected)?;
-        match event::read().map_err(|e| format!("could not read keyboard input: {e}"))? {
-            Event::Key(key) => match key.code {
-                KeyCode::Up => selected = selected.saturating_sub(1),
-                KeyCode::Down => selected = (selected + 1).min(videos.len() - 1),
-                KeyCode::Enter => break Ok(Some(&videos[selected])),
-                KeyCode::Esc | KeyCode::Char('q') => break Ok(None),
-                _ => {}
-            },
-            _ => {}
-        }
-    };
-    let cleanup = execute!(stdout, cursor::Show, terminal::LeaveAlternateScreen)
-        .and_then(|_| terminal::disable_raw_mode());
-    cleanup.map_err(|e| format!("terminal cleanup failed: {e}"))?;
-    result
+    if videos.is_empty() {
+        return Ok(None);
+    }
+
+    let items: Vec<ListItem> = videos
+        .iter()
+        .map(|video| {
+            let title = video.title.lines().collect::<Vec<_>>().join(" ");
+            ListItem::new(Line::from(format!(
+                "{title}  [{}]  {}",
+                video.duration, video.created_at
+            )))
+        })
+        .collect();
+    let mut state = ListState::default().with_selected(Some(0));
+
+    let selected =
+        ratatui::run(|terminal| run_selector(terminal, &items, videos.len(), &mut state))
+            .map_err(|e| format!("video selector failed: {e}"))?;
+    Ok(selected.map(|index| &videos[index]))
 }
 
-fn render(stdout: &mut io::Stdout, videos: &[Video], selected: usize) -> Result<(), String> {
-    let (_, rows) = terminal::size().unwrap_or((80, 24));
-    let visible_count = (rows as usize).saturating_sub(4).max(1);
-    let start = selected
-        .saturating_sub(visible_count - 1)
-        .min(videos.len().saturating_sub(visible_count));
-    let end = (start + visible_count).min(videos.len());
-    queue!(
-        stdout,
-        cursor::MoveTo(0, 0),
-        Clear(ClearType::All),
-        Print("Select Twitch video (↑/↓, Enter, q to cancel)\n\n")
-    )
-    .map_err(|e| format!("could not render selector: {e}"))?;
-    for (index, video) in videos.iter().enumerate().take(end).skip(start) {
-        if index == selected {
-            queue!(stdout, SetAttribute(Attribute::Reverse)).map_err(|e| e.to_string())?;
-        }
-        queue!(
-            stdout,
-            Print(format!(
-                "{}  {}  [{}]  {}\n",
-                if index == selected { ">" } else { " " },
-                video.title,
-                video.duration,
-                video.created_at
-            ))
-        )
-        .map_err(|e| e.to_string())?;
-        if index == selected {
-            queue!(stdout, SetAttribute(Attribute::Reset)).map_err(|e| e.to_string())?;
+fn run_selector(
+    terminal: &mut DefaultTerminal,
+    items: &[ListItem],
+    item_count: usize,
+    state: &mut ListState,
+) -> io::Result<Option<usize>> {
+    loop {
+        terminal.draw(|frame| render(frame, items, item_count, state))?;
+
+        let Event::Key(key) = event::read()? else {
+            continue;
+        };
+        match key.code {
+            KeyCode::Up => {
+                let selected = state.selected().unwrap_or(0);
+                state.select(Some(selected.saturating_sub(1)));
+            }
+            KeyCode::Down => {
+                let selected = state.selected().unwrap_or(0);
+                state.select(Some((selected + 1).min(item_count - 1)));
+            }
+            KeyCode::Enter => return Ok(state.selected()),
+            KeyCode::Esc | KeyCode::Char('q') => return Ok(None),
+            _ => {}
         }
     }
-    queue!(
-        stdout,
-        Print(format!(
-            "\nShowing {}–{} of {}",
-            start + 1,
-            end,
-            videos.len()
-        ))
-    )
-    .map_err(|e| format!("could not render selector status: {e}"))?;
-    stdout
-        .flush()
-        .map_err(|e| format!("could not flush terminal: {e}"))
+}
+
+fn render(frame: &mut Frame, items: &[ListItem], item_count: usize, state: &mut ListState) {
+    let areas = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Min(1),
+            Constraint::Length(1),
+        ])
+        .split(frame.area());
+
+    frame.render_widget(
+        Paragraph::new("Select Twitch video • ↑/↓ move • Enter select • q cancel"),
+        areas[0],
+    );
+
+    let list = List::new(items.iter().cloned())
+        .block(Block::default().borders(Borders::ALL).title(" Videos "))
+        .highlight_symbol("› ")
+        .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    frame.render_stateful_widget(list, areas[1], state);
+
+    let selected = state.selected().map_or(0, |index| index + 1);
+    frame.render_widget(
+        Paragraph::new(format!("Video {selected} of {item_count}")),
+        areas[2],
+    );
 }
