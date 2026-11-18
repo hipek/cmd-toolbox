@@ -6,7 +6,11 @@ pub struct Config {
 impl Config {
     pub fn new() -> Self {
         Self {
-            base_dir: format!("{}/{}", std::env::var("HOME").unwrap_or_default(), "MyVideos"),
+            base_dir: format!(
+                "{}/{}",
+                std::env::var("HOME").unwrap_or_default(),
+                "MyVideos"
+            ),
             default_dirs: vec![
                 "01_project",
                 "02_source",

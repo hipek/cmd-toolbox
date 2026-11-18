@@ -13,7 +13,9 @@ pub fn parse(args: &[String]) -> Result<ProjectName, String> {
         std::process::exit(0);
     }
 
-    let name = args.next().ok_or("Error: Missing project name.\n\nUsage: cvp <project-name>")?;
+    let name = args
+        .next()
+        .ok_or("Error: Missing project name.\n\nUsage: cvp <project-name>")?;
 
     let sanitized = sanitize(name);
     if sanitized.is_empty() {
@@ -49,4 +51,38 @@ fn print_help() {
     println!("  03_assets");
     println!("  04_music_sfx");
     println!("  05_export");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse;
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).to_owned()).collect()
+    }
+
+    #[test]
+    fn parses_and_sanitizes_project_name() {
+        let parsed = parse(&args(&["cvp", "My Stream: Day 1!"])).unwrap();
+        assert_eq!(parsed.raw, "My Stream: Day 1!");
+        assert_eq!(parsed.sanitized, "my-stream-day-1");
+    }
+
+    #[test]
+    fn rejects_missing_project_name() {
+        assert!(
+            parse(&args(&["cvp"]))
+                .unwrap_err()
+                .contains("Missing project name")
+        );
+    }
+
+    #[test]
+    fn rejects_name_empty_after_sanitization() {
+        assert!(
+            parse(&args(&["cvp", "!!!"]))
+                .unwrap_err()
+                .contains("empty after sanitization")
+        );
+    }
 }
