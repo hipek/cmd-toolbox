@@ -1,0 +1,15 @@
+[package]
+name = "tvd"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "tvd"
+path = "src/main.rs"
+
+[dependencies]
+crossterm = "0.29"
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

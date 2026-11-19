@@ -1,14 +1,14 @@
 mod config;
-mod parser;
-mod path_builder;
 mod conflict_check;
 mod creator;
+mod parser;
+mod path_builder;
 
 use config::Config;
-use parser::parse;
-use path_builder::build;
 use conflict_check::check;
 use creator::create;
+use parser::parse;
+use path_builder::build;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
